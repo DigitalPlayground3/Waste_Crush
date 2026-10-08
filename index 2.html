@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Waste Crush · Thooimai Mission</title>
+<style>
+/* =====================================================================
+   THEME (edit colours here)
+   ===================================================================== */
+:root{
+  --bg1:#DFF1EA; --bg2:#D7E6F7; --ink:#13283A; --soft:#4D6474; --card:#FFFFFF; --line:#CFDFE8;
+  --boardbg:#1D3B4F; --cellbg:#27495F;
+  --wet:#3FA34D; --wet-t:#DDF3E0; --dry:#2F6FD6; --dry-t:#DCE8FB;
+  --haz:#2A2F37; --haz-t:#DADDE3; --san:#D9473B; --san-t:#FADCD9;
+  --gold:#F5B700; --accent:#FF7A1A; --good:#1F8A47;
+  --font:"Trebuchet MS","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  --cell:56px; --swap:150ms; --fall:210ms;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg1:#0E2026; --bg2:#0F1C2B; --ink:#EAF3F7; --soft:#A9BDCA; --card:#173040; --line:#294657; --boardbg:#0B1A24; --cellbg:#15303F; }
+}
+:root[data-theme="dark"]{ --bg1:#0E2026; --bg2:#0F1C2B; --ink:#EAF3F7; --soft:#A9BDCA; --card:#173040; --line:#294657; --boardbg:#0B1A24; --cellbg:#15303F; }
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:radial-gradient(120% 80% at 50% 0%,var(--bg1),var(--bg2));color:var(--ink);font-family:var(--font);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{font:inherit}
+.app{height:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;padding:8px 12px 10px;gap:8px}
+
+/* ---------------- HUD ---------------- */
+.topbar{display:flex;align-items:center;gap:8px}
+.pill{background:var(--card);border:1.5px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:800;font-size:14px;white-space:nowrap}
+.brandmini{font-weight:900;letter-spacing:.5px;font-size:15px;flex:1}
+.brandmini small{display:block;font-weight:700;color:var(--soft);font-size:11px;letter-spacing:1px}
+.ibtn{appearance:none;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;width:40px;height:36px;font-size:17px;cursor:pointer}
+.ibtn:focus-visible,.btn:focus-visible,.lvl:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.goal{background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:8px 12px}
+.goal .gt{font-weight:800;font-size:15px;line-height:1.2}
+.goal .gl{display:flex;flex-direction:column;gap:5px;margin-top:6px}
+.grow{display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px;font-size:12.5px;font-weight:700;color:var(--soft)}
+.grow>span{flex:1 1 100%}
+.grow .bar{flex:1;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.grow .bar i{display:block;height:100%;background:var(--wet);width:0;transition:width .3s}
+.grow.done .bar i{background:var(--gold)}
+.grow b{color:var(--ink);min-width:58px;text-align:right}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:5px 8px;text-align:center}
+.stat span{display:block;font-size:10.5px;font-weight:800;letter-spacing:1.2px;color:var(--soft)}
+.stat b{font-size:20px;font-weight:900}
+.stat.bump{animation:bump .3s ease}
+.stat.low b{color:#D9473B}
+
+/* ---------------- BOARD ---------------- */
+.boardwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+.board{position:relative;width:calc(var(--cell)*8);height:calc(var(--cell)*8);background:var(--boardbg);border-radius:18px;box-shadow:0 10px 30px rgba(10,30,45,.25),inset 0 0 0 4px rgba(255,255,255,.06);touch-action:none;overflow:hidden}
+.board::before{content:"";position:absolute;inset:0;background-image:linear-gradient(var(--cellbg) 1px,transparent 1px),linear-gradient(90deg,var(--cellbg) 1px,transparent 1px);background-size:var(--cell) var(--cell);opacity:.6}
+.tile{position:absolute;left:0;top:0;width:var(--cell);height:var(--cell);padding:calc(var(--cell)*.06);transition:transform var(--fall) cubic-bezier(.3,.9,.4,1.15);will-change:transform;z-index:2}
+.tile.swap{transition:transform var(--swap) ease-in-out}
+.tile.nofx{transition:none}
+.face{position:relative;width:100%;height:100%;border-radius:calc(var(--cell)*.24);display:flex;align-items:center;justify-content:center;background:var(--t);box-shadow:inset 0 calc(var(--cell)*-.08) 0 var(--c),0 2px 0 rgba(0,0,0,.18);transition:transform .15s,opacity .18s}
+.ic{font-size:calc(var(--cell)*.52);line-height:1;transform:translateY(calc(var(--cell)*-.03));filter:drop-shadow(0 2px 1px rgba(0,0,0,.15))}
+.ic svg{width:calc(var(--cell)*.6);height:calc(var(--cell)*.6);display:block}
+.cat-wet{--c:var(--wet);--t:var(--wet-t)}.cat-dry{--c:var(--dry);--t:var(--dry-t)}.cat-haz{--c:var(--haz);--t:var(--haz-t)}.cat-san{--c:var(--san);--t:var(--san-t)}
+.tile.sel .face{transform:scale(1.1);box-shadow:inset 0 calc(var(--cell)*-.08) 0 var(--c),0 0 0 3px #fff,0 0 0 6px var(--accent)}
+.tile.gone .face{transform:scale(0) rotate(25deg);opacity:0}
+.tile.born .face{animation:born .35s ease}
+.tile.hint .face{animation:hint 1s ease-in-out 2}
+/* power-up looks */
+.sp-h .face::after,.sp-v .face::after{content:"";position:absolute;inset:14%;border-radius:20%;opacity:.55;pointer-events:none}
+.sp-h .face::after{background:repeating-linear-gradient(0deg,transparent 0 18%,#fff 18% 30%)}
+.sp-v .face::after{background:repeating-linear-gradient(90deg,transparent 0 18%,#fff 18% 30%)}
+.badge{position:absolute;right:-2%;top:-4%;font-size:calc(var(--cell)*.3);line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.sp-bomb .face,.sp-compost .face{animation:glow 1.4s ease-in-out infinite}
+.sp-bomb .face{box-shadow:inset 0 calc(var(--cell)*-.08) 0 var(--c),0 0 0 3px #FF7A1A}
+.sp-compost .face{box-shadow:inset 0 calc(var(--cell)*-.08) 0 var(--c),0 0 0 3px #7BD389}
+.sp-star .face{background:radial-gradient(circle at 35% 30%,#FFF6C8,#F5B700 70%);box-shadow:0 0 0 3px #FFE27A,0 0 14px #F5B700;animation:spin 6s linear infinite}
+.sp-blast .face{background:conic-gradient(#3FA34D,#2F6FD6,#D9473B,#2A2F37,#3FA34D);box-shadow:0 0 0 3px #fff,0 0 16px rgba(255,255,255,.6);animation:glow 1s ease-in-out infinite}
+.fx{position:absolute;z-index:6;pointer-events:none}
+.flash{background:rgba(255,255,255,.85);border-radius:8px;animation:flash .35s ease-out forwards}
+.pts{font-weight:900;color:#fff;font-size:calc(var(--cell)*.36);text-shadow:0 2px 0 #13283A,0 0 6px rgba(0,0,0,.4);animation:rise .8s ease-out forwards;transform:translate(-50%,-50%)}
+.shout{position:absolute;left:50%;top:44%;z-index:8;transform:translate(-50%,-50%);font-weight:900;font-size:clamp(28px,8vw,46px);color:var(--gold);text-shadow:0 3px 0 #13283A,0 0 18px rgba(245,183,0,.5);white-space:nowrap;pointer-events:none;animation:shout 1s ease forwards}
+.transform{position:absolute;left:50%;top:10px;transform:translate(-50%,-140%);z-index:9;background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font-weight:800;font-size:clamp(12px,3.2vw,15px);white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.25);transition:transform .25s ease,opacity .25s;opacity:0;pointer-events:none}
+.transform.show{transform:translate(-50%,0);opacity:1}
+.transform .ar{color:var(--soft);margin:0 5px}
+.legend{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 12px;font-size:12px;font-weight:700;color:var(--soft)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:12px;height:12px;border-radius:4px;background:var(--c)}
+
+/* ---------------- SCREENS ---------------- */
+.screen{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom));background:rgba(10,24,34,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);transition:opacity .25s}
+.screen.hide{opacity:0;pointer-events:none}
+.sheet{width:min(460px,100%);max-height:100%;overflow:auto;background:var(--card);border-radius:24px;padding:22px 20px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.3);animation:sheet .35s ease}
+.home{background:radial-gradient(120% 80% at 50% 0%,var(--bg1),var(--bg2));backdrop-filter:none}
+.home .sheet{background:transparent;box-shadow:none;width:min(520px,100%)}
+.logo{font-weight:900;font-size:clamp(44px,13vw,72px);line-height:.9;letter-spacing:-1px}
+.logo span{display:block;color:var(--wet)}
+.logo span:last-child{color:var(--dry)}
+.sub{font-weight:800;letter-spacing:2px;color:var(--soft);font-size:13px;margin-top:10px}
+.tag{font-weight:800;font-size:18px;margin:4px 0 14px}
+.tilesrow{display:flex;justify-content:center;gap:8px;margin:6px 0 14px;--cell:44px}
+.tilesrow .face{width:44px;height:44px}
+.btn{appearance:none;border:0;cursor:pointer;font-weight:900;letter-spacing:.5px;font-size:18px;background:var(--ink);color:var(--bg1);padding:13px 30px;border-radius:999px;box-shadow:0 6px 0 rgba(0,0,0,.25);transition:transform .1s}
+.btn:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.25)}
+.btn.alt{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 2px var(--line)}
+.btn.go{background:var(--wet);color:#fff}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.levels{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px auto 6px;max-width:360px}
+.lvl{appearance:none;border:0;cursor:pointer;aspect-ratio:1;border-radius:16px;background:var(--card);color:var(--ink);font-weight:900;font-size:20px;box-shadow:0 4px 0 var(--line);position:relative}
+.lvl.done{background:var(--wet);color:#fff;box-shadow:0 4px 0 #2B7A36}
+.lvl[disabled]{opacity:.45;cursor:default}
+.lvl small{position:absolute;bottom:4px;left:0;right:0;font-size:10px}
+.how{display:grid;grid-template-columns:1fr 1fr;gap:6px;text-align:left;font-size:12.5px;color:var(--soft);margin-top:12px;background:var(--card);border-radius:16px;padding:10px 12px;border:1.5px solid var(--line)}
+.how b{color:var(--ink)}
+.h2{font-weight:900;font-size:clamp(26px,7vw,34px);margin:0}
+.big{font-size:44px}
+.rows{display:grid;grid-template-columns:1fr auto;gap:6px 14px;text-align:left;margin:14px 0 4px;font-size:15px}
+.rows b{text-align:right}
+.impact{background:var(--wet-t);color:#13283A;border-radius:16px;padding:12px 14px;margin-top:12px;text-align:left}
+.impact h3{margin:0 0 6px;font-size:14px;letter-spacing:1.5px}
+.impact .rows{margin:0;font-size:14px}
+.msg{margin-top:10px;font-weight:700;color:var(--soft);font-size:14px}
+/* final campus scene */
+.finale .sheet{width:min(560px,100%);padding:16px}
+.scene{position:relative;width:100%;aspect-ratio:16/10;border-radius:18px;overflow:hidden}
+.scene svg{position:absolute;inset:0;width:100%;height:100%}
+.scene .after{opacity:0;transition:opacity 1.2s}
+.finale.play .scene .after{opacity:1;transition-delay:2.6s}
+.steps{display:flex;justify-content:center;gap:8px;font-weight:900;font-size:clamp(16px,4.6vw,22px);margin:12px 0 4px}
+.steps span{opacity:0;animation:fadeup .4s ease forwards}
+.finale.play .steps span:nth-child(1){animation-delay:.6s}.finale.play .steps span:nth-child(2){animation-delay:.9s}.finale.play .steps span:nth-child(3){animation-delay:1.3s}.finale.play .steps span:nth-child(4){animation-delay:1.6s}.finale.play .steps span:nth-child(5){animation-delay:2s}
+.finale .fin{opacity:0}
+.finale.play .fin{animation:fadeup .6s ease forwards 3.6s}
+.finale .fin h2{font-size:clamp(28px,8vw,40px);margin:6px 0 2px;color:var(--wet)}
+
+/* ---------------- KEYFRAMES ---------------- */
+@keyframes born{0%{transform:scale(.2)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes hint{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes glow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.18)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes flash{from{opacity:1}to{opacity:0}}
+@keyframes rise{0%{opacity:0;margin-top:6px}20%{opacity:1}100%{opacity:0;margin-top:-36px}}
+@keyframes shout{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}40%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-62%)}}
+@keyframes bump{50%{transform:scale(1.1)}}
+@keyframes sheet{from{transform:translateY(20px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .sp-star .face,.sp-blast .face,.sp-bomb .face,.sp-compost .face,.tile.hint .face{animation:none!important}
+  .tile,.face{transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="topbar">
+    <button class="ibtn" id="homeBtn" title="Home" aria-label="Home">⌂</button>
+    <div class="brandmini">WASTE CRUSH<small>THOOIMAI MISSION</small></div>
+    <div class="pill" id="lvlPill">Level 1</div>
+    <button class="ibtn" id="soundBtn" title="Sound on/off" aria-pressed="true">🔊</button>
+  </div>
+  <div class="goal"><div class="gt" id="goalText">Objective</div><div class="gl" id="goalList"></div></div>
+  <div class="stats">
+    <div class="stat" id="scoreBox"><span>SCORE</span><b id="score">0</b></div>
+    <div class="stat" id="movesBox"><span>MOVES</span><b id="moves">0</b></div>
+    <div class="stat" id="comboBox"><span>COMBO</span><b id="combo">x1</b></div>
+  </div>
+  <div class="boardwrap" id="boardwrap">
+    <div class="board" id="board" aria-label="Game board"></div>
+    <div class="transform" id="transform"></div>
+  </div>
+  <div class="legend">
+    <span style="--c:var(--wet)"><i></i>Wet</span><span style="--c:var(--dry)"><i></i>Dry</span>
+    <span style="--c:var(--san)"><i></i>Sanitary</span><span style="--c:var(--haz)"><i></i>Special care</span>
+  </div>
+</div>
+
+<!-- HOME -->
+<div class="screen home" id="homeScreen">
+  <div class="sheet">
+    <div class="sub">THOOIMAI MISSION</div>
+    <div class="logo"><span>WASTE</span><span>CRUSH</span></div>
+    <div class="tag">Match. Combine. Transform.</div>
+    <div class="tilesrow" id="demoTiles"></div>
+    <button class="btn go" id="playBtn">PLAY</button>
+    <div class="levels" id="levels"></div>
+    <div class="how">
+      <div><b>Match 3</b> same items</div>
+      <div><b>Match 4</b> → Waste Sweeper ↔ ↕</div>
+      <div><b>Wet 4</b> → 🌱 Compost Boost</div>
+      <div><b>L / T shape</b> → 💥 Waste Bomb</div>
+      <div><b>Match 5</b> → 🌟 Zero Waste Star</div>
+      <div><b>Match 6</b> → 🌍 Zero Waste Blast</div>
+      <div style="grid-column:1/-1">Swap a power-up to fire it. <b>Swap two power-ups together</b> for a combo!</div>
+    </div>
+  </div>
+</div>
+
+<!-- LEVEL INTRO -->
+<div class="screen hide" id="introScreen">
+  <div class="sheet">
+    <div class="sub" id="introLvl">LEVEL 1</div>
+    <h2 class="h2" id="introGoal">Objective</h2>
+    <p class="msg" id="introMoves">20 moves</p>
+    <div class="btns"><button class="btn go" id="goBtn">LET'S GO</button></div>
+  </div>
+</div>
+
+<!-- WIN -->
+<div class="screen hide" id="winScreen">
+  <div class="sheet">
+    <div class="big">🎉</div>
+    <h2 class="h2">LEVEL COMPLETE!</h2>
+    <div class="rows">
+      <span>Score</span><b id="wScore">0</b>
+      <span>Best Combo</span><b id="wCombo">x1</b>
+      <span>Power-Ups Created</span><b id="wPow">0</b>
+    </div>
+    <div class="impact">
+      <h3>WASTE IMPACT</h3>
+      <div class="rows">
+        <span>Wet Waste Segregated</span><b id="wWet">0</b>
+        <span>Dry Waste Segregated</span><b id="wDry">0</b>
+        <span>Sanitary &amp; Special-Care Waste</span><b id="wOther">0</b>
+        <span>Waste Items Cleared</span><b id="wAll">0</b>
+      </div>
+    </div>
+    <div class="msg">Great job! Proper segregation helps waste become a resource.</div>
+    <div class="btns"><button class="btn go" id="nextBtn">NEXT LEVEL</button><button class="btn alt" id="replayBtn">REPLAY</button><button class="btn alt" id="winHomeBtn">HOME</button></div>
+  </div>
+</div>
+
+<!-- FAIL -->
+<div class="screen hide" id="failScreen">
+  <div class="sheet">
+    <div class="big">🙈</div>
+    <h2 class="h2">OUT OF MOVES</h2>
+    <p class="msg" id="failMsg">So close! Try again.</p>
+    <div class="btns"><button class="btn go" id="retryBtn">TRY AGAIN</button><button class="btn alt" id="failHomeBtn">HOME</button></div>
+  </div>
+</div>
+
+<!-- FINALE -->
+<div class="screen hide finale" id="finaleScreen">
+  <div class="sheet">
+    <div class="scene">
+      <svg viewBox="0 0 320 200" class="before" aria-label="Messy school campus">
+        <rect width="320" height="200" fill="#C9C3B6"/>
+        <rect y="140" width="320" height="60" fill="#A89F8C"/>
+        <rect x="70" y="50" width="180" height="92" rx="4" fill="#B6AEA0"/><polygon points="60,52 160,18 260,52" fill="#9C9384"/>
+        <g fill="#8E867A"><rect x="88" y="70" width="26" height="20" rx="2"/><rect x="132" y="70" width="26" height="20" rx="2"/><rect x="176" y="70" width="26" height="20" rx="2"/><rect x="220" y="70" width="20" height="20" rx="2"/></g>
+        <rect x="147" y="104" width="26" height="38" rx="2" fill="#7D766B"/>
+        <rect x="262" y="118" width="28" height="30" rx="3" fill="#6F6A62"/>
+        <g font-size="14"><text x="252" y="120">🧴</text><text x="268" y="112">📦</text><text x="282" y="122">🍌</text>
+        <text x="30" y="168">🍌</text><text x="60" y="186">🧴</text><text x="100" y="162">📰</text><text x="140" y="190">🔋</text><text x="190" y="170">📦</text><text x="220" y="188">🍎</text><text x="270" y="172">🧴</text><text x="20" y="190">📦</text></g>
+      </svg>
+      <svg viewBox="0 0 320 200" class="after" aria-label="Clean zero waste campus">
+        <rect width="320" height="200" fill="#CFEAF6"/>
+        <rect y="140" width="320" height="60" fill="#9ED3A0"/>
+        <rect x="70" y="50" width="180" height="92" rx="4" fill="#F4EFE6"/><polygon points="60,52 160,18 260,52" fill="#D9473B"/>
+        <g fill="#8EC5E8"><rect x="88" y="70" width="26" height="20" rx="2"/><rect x="132" y="70" width="26" height="20" rx="2"/><rect x="176" y="70" width="26" height="20" rx="2"/><rect x="220" y="70" width="20" height="20" rx="2"/></g>
+        <rect x="147" y="104" width="26" height="38" rx="2" fill="#2F6FD6"/>
+        <g><circle cx="30" cy="118" r="20" fill="#3FA34D"/><rect x="27" y="128" width="6" height="16" fill="#7A5230"/><circle cx="292" cy="114" r="22" fill="#3FA34D"/><rect x="289" y="126" width="6" height="18" fill="#7A5230"/></g>
+        <g><rect x="186" y="150" width="16" height="22" rx="3" fill="#3FA34D"/><rect x="206" y="150" width="16" height="22" rx="3" fill="#2F6FD6"/><rect x="226" y="150" width="16" height="22" rx="3" fill="#D9473B"/><rect x="246" y="150" width="16" height="22" rx="3" fill="#2A2F37"/></g>
+        <g font-size="16"><text x="40" y="174">🌱</text><text x="66" y="180">🌿</text><text x="110" y="176">♻️</text><text x="140" y="186">🌼</text><text x="270" y="190">🌿</text></g>
+        <text x="160" y="40" font-size="12" text-anchor="middle" fill="#fff" font-weight="bold">ZERO WASTE</text>
+      </svg>
+    </div>
+    <div class="steps"><span>MATCH</span><span>→</span><span>SORT</span><span>→</span><span>TRANSFORM</span></div>
+    <div class="fin">
+      <h2>ZERO WASTE CAMPUS</h2>
+      <p class="msg">Every correct match creates a cleaner campus.</p>
+      <div class="btns"><button class="btn alt" id="finReplay">REPLAY LEVEL 10</button><button class="btn go" id="finHome">HOME</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   1. CONFIGURATION — waste items, scoring, levels (all editable)
+   ===================================================================== */
+const N = 8;                       // board is N × N
+const ITEMS = [                     // cat: wet | dry | san | haz
+  { key: "banana",    name: "Banana peel",     cat: "wet", icon: "🍌" },
+  { key: "fruit",     name: "Fruit waste",     cat: "wet", icon: "🍎" },
+  { key: "cardboard", name: "Cardboard",       cat: "dry", icon: "📦" },
+  { key: "bottle",    name: "Plastic bottle",  cat: "dry", icon: "🧴" },
+  { key: "battery",   name: "Battery",         cat: "haz", icon: "🔋" },
+  { key: "sanitary",  name: "Sanitary waste",  cat: "san", icon: "svg:diaper" },
+  { key: "paper",     name: "Newspaper",       cat: "dry", icon: "📰" },
+  { key: "veg",       name: "Vegetable waste", cat: "wet", icon: "🥬" }
+];
+const SVG = {
+  diaper: '<svg viewBox="0 0 48 48"><path d="M6 13h36l-5 19c-2 6-7 9-13 9s-11-3-13-9z" fill="#FFFFFF" stroke="#C97F79" stroke-width="2.5"/><path d="M6 13h36v6H6z" fill="#F4B6B0"/><circle cx="18" cy="27" r="2.4" fill="#E58E86"/><circle cx="30" cy="27" r="2.4" fill="#E58E86"/></svg>'
+};
+const SCORE = { m3: 30, m4: 60, m5: 100, m6: 150, powerUse: 40, combo: 250, mega: 500 };
+const TRANSFORM_TEXT = {
+  wet: ["🍌 Wet waste", "🌱 Composting", "🌿 Manure"],
+  dry: ["📦 Dry waste", "♻️ Recycling", "🛍️ New products"],
+  san: ["🧷 Sanitary waste", "📦 Wrapped & kept apart", "✅ Safe disposal"],
+  haz: ["🔋 Special-care waste", "🧤 Collected separately", "✅ Safe handling"]
+};
+const STAR_BONUS = { wet: "🌱 COMPOSTING BONUS", dry: "♻️ RECYCLING BONUS", san: "🧷 SAFE DISPOSAL BONUS", haz: "🔋 SAFE HANDLING BONUS" };
+// Goal types: score, make4 (matches of 4+), powerups, bombs, stars, combos (two power-ups swapped), starUse, wet, dry
+const LEVELS = [
+  { moves: 20, items: ["banana","cardboard","bottle","battery","sanitary"], title: "Learn to match 3", goals: [{ t: "score", n: 600, label: "Score 600 points" }] },
+  { moves: 20, items: ["banana","cardboard","bottle","battery","sanitary"], title: "Make it bigger", goals: [{ t: "make4", n: 1, label: "Create a match of 4" }] },
+  { moves: 22, items: ["banana","fruit","cardboard","bottle","battery"], title: "Power up", goals: [{ t: "powerups", n: 3, label: "Create 3 power-ups" }] },
+  { moves: 22, items: ["banana","cardboard","bottle","battery","sanitary"], title: "Waste Bomb", goals: [{ t: "bombs", n: 1, label: "Create a Waste Bomb (L or T shape)" }] },
+  { moves: 30, items: ["banana","cardboard","bottle","battery","sanitary"], title: "Match of 5", goals: [{ t: "stars", n: 1, label: "Create a match of 5" }] },
+  { moves: 25, items: ["banana","fruit","cardboard","bottle","sanitary"], title: "Team up", goals: [{ t: "combos", n: 1, label: "Swap two power-ups together" }] },
+  { moves: 25, items: ["banana","cardboard","bottle","battery","sanitary"], title: "Zero Waste Star", goals: [{ t: "starUse", n: 1, label: "Create and use a Zero Waste Star" }] },
+  { moves: 18, items: ["banana","fruit","cardboard","bottle","battery"], title: "Big match rush", goals: [{ t: "make4", n: 3, label: "Make 3 big matches (4+) in 18 moves" }] },
+  { moves: 30, items: ["banana","cardboard","bottle","battery","sanitary"], title: "Combo master", goals: [{ t: "combos", n: 2, label: "Make 2 power-up combinations" }] },
+  { moves: 35, items: ["banana","fruit","cardboard","paper","battery","sanitary"], title: "ZERO WASTE CAMPUS", goals: [
+      { t: "wet", n: 40, label: "Clear 40 wet-waste items" },
+      { t: "dry", n: 40, label: "Clear 40 dry-waste items" },
+      { t: "score", n: 3000, label: "Score 3,000 points" }] }
+];
+
+/* =====================================================================
+   2. STATE
+   ===================================================================== */
+const $ = (id) => document.getElementById(id);
+const boardEl = $("board");
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const D = { swap: REDUCED ? 0 : 150, clear: REDUCED ? 0 : 190, fall: REDUCED ? 0 : 210 };
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+let G = [];                     // G[r][c] = tile | null
+let S = null;                   // level state
+let CELL = 56, uid = 0;
+let unlocked = 1;
+const LOG = [];                // event log (used by tests)
+try { unlocked = Math.max(1, +localStorage.getItem("wastecrush-unlocked") || 1); } catch (e) {}
+
+function newLevelState(i) {
+  return { level: i, cfg: LEVELS[i], score: 0, moves: LEVELS[i].moves, busy: false, sel: null, over: false,
+    cascade: 1, bestCombo: 1,
+    stats: { make4: 0, powerups: 0, bombs: 0, stars: 0, combos: 0, starUse: 0, wet: 0, dry: 0, san: 0, haz: 0, cleared: 0 } };
+}
+const pool = () => S.cfg.items.map(k => ITEMS.findIndex(i => i.key === k));
+const rnd = () => { const p = pool(); return p[Math.floor(Math.random() * p.length)]; };
+const key = (r, c) => r + "," + c;
+const unkey = (k) => k.split(",").map(Number);
+const inB = (r, c) => r >= 0 && c >= 0 && r < N && c < N;
+const COLORLESS = (sp) => sp === "star" || sp === "blast";
+function typeAt(r, c) { const t = G[r] && G[r][c]; if (!t || COLORLESS(t.special)) return -1; return t.type; }
+
+/* =====================================================================
+   3. TILES & RENDERING
+   ===================================================================== */
+function iconHTML(type) { const ic = ITEMS[type].icon; return ic.startsWith("svg:") ? SVG[ic.slice(4)] : ic; }
+function makeTile(type, special = null) {
+  const t = { id: ++uid, type, special, el: document.createElement("div") };
+  t.el.innerHTML = '<div class="face"><span class="ic"></span></div>';
+  boardEl.appendChild(t.el); paint(t); return t;
+}
+function paint(t) {
+  const face = t.el.firstChild, ic = face.firstChild;
+  t.el.className = "tile" + (t.special ? " sp-" + t.special : "");
+  face.className = "face" + (COLORLESS(t.special) ? "" : " cat-" + ITEMS[t.type].cat);
+  face.querySelectorAll(".badge").forEach(b => b.remove());
+  if (t.special === "star") ic.innerHTML = "🌟";
+  else if (t.special === "blast") ic.innerHTML = "🌍";
+  else ic.innerHTML = iconHTML(t.type);
+  const badge = { h: "↔️", v: "↕️", bomb: "💥", compost: "🌱" }[t.special];
+  if (badge) face.insertAdjacentHTML("beforeend", `<span class="badge">${badge}</span>`);
+  const label = COLORLESS(t.special) ? (t.special === "star" ? "Zero Waste Star" : "Zero Waste Blast") : ITEMS[t.type].name + (t.special ? " power-up" : "");
+  t.el.setAttribute("aria-label", label);
+}
+function setPos(t, r, c, cls) { t.el.classList.remove("swap", "nofx"); if (cls) t.el.classList.add(cls); t.el.style.transform = `translate(${c * CELL}px,${r * CELL}px)`; }
+function layout() {
+  const wrap = $("boardwrap").getBoundingClientRect();
+  CELL = Math.max(34, Math.floor(Math.min(wrap.width, wrap.height) / N));
+  document.documentElement.style.setProperty("--cell", CELL + "px");
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (G[r] && G[r][c]) setPos(G[r][c], r, c, "nofx");
+}
+window.addEventListener("resize", layout);
+
+/* =====================================================================
+   4. BOARD GENERATION
+   ===================================================================== */
+function buildBoard() {
+  boardEl.innerHTML = ""; G = [];
+  let tries = 0;
+  do {
+    G = Array.from({ length: N }, () => Array(N).fill(null));
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      let t; do { t = rnd(); } while ((c >= 2 && G[r][c - 1].type === t && G[r][c - 2].type === t) || (r >= 2 && G[r - 1][c].type === t && G[r - 2][c].type === t));
+      G[r][c] = { type: t, special: null };
+    }
+  } while (!hasMoves() && ++tries < 50);
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) { const t = makeTile(G[r][c].type); G[r][c] = t; setPos(t, r, c, "nofx"); }
+}
+// Is there any valid move? (a power-up on the board always counts)
+function hasMoves() {
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (G[r][c].special) return true;
+    for (const [dr, dc] of [[0, 1], [1, 0]]) {
+      const r2 = r + dr, c2 = c + dc; if (!inB(r2, c2)) continue;
+      swapRaw(r, c, r2, c2); const ok = lineAt(r, c) || lineAt(r2, c2); swapRaw(r, c, r2, c2);
+      if (ok) return true;
+    }
+  }
+  return false;
+}
+function swapRaw(r1, c1, r2, c2) { const t = G[r1][c1]; G[r1][c1] = G[r2][c2]; G[r2][c2] = t; }
+function lineAt(r, c) {
+  const t = typeAt(r, c); if (t < 0) return false;
+  let h = 1, v = 1;
+  for (let x = c - 1; x >= 0 && typeAt(r, x) === t; x--) h++; for (let x = c + 1; x < N && typeAt(r, x) === t; x++) h++;
+  for (let y = r - 1; y >= 0 && typeAt(y, c) === t; y--) v++; for (let y = r + 1; y < N && typeAt(y, c) === t; y++) v++;
+  return h >= 3 || v >= 3;
+}
+async function shuffleBoard() {
+  shout("Shuffling!");
+  let tries = 0;
+  do {
+    const tiles = G.flat().filter(t => !t.special);
+    const types = tiles.map(t => t.type).sort(() => Math.random() - .5);
+    tiles.forEach((t, i) => { t.type = types[i]; paint(t); });
+  } while ((findGroups().length || !hasMoves()) && ++tries < 60);
+  if (tries >= 60) { G.flat().forEach(t => { if (!t.special) { t.type = rnd(); paint(t); } }); }
+  await sleep(300);
+}
+
+/* =====================================================================
+   5. MATCH DETECTION
+   ===================================================================== */
+function findGroups() {
+  const runs = [];
+  for (let r = 0; r < N; r++) { let c = 0; while (c < N) { const t = typeAt(r, c); let e = c; if (t >= 0) while (e + 1 < N && typeAt(r, e + 1) === t) e++; if (t >= 0 && e - c + 1 >= 3) runs.push({ dir: "h", type: t, cells: Array.from({ length: e - c + 1 }, (_, i) => [r, c + i]) }); c = e + 1; } }
+  for (let c = 0; c < N; c++) { let r = 0; while (r < N) { const t = typeAt(r, c); let e = r; if (t >= 0) while (e + 1 < N && typeAt(e + 1, c) === t) e++; if (t >= 0 && e - r + 1 >= 3) runs.push({ dir: "v", type: t, cells: Array.from({ length: e - r + 1 }, (_, i) => [r + i, c]) }); r = e + 1; } }
+  // union runs that share a cell (L / T shapes)
+  const parent = runs.map((_, i) => i), find = (i) => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  const owner = new Map();
+  runs.forEach((run, i) => run.cells.forEach(([r, c]) => { const k = key(r, c); if (owner.has(k)) parent[find(i)] = find(owner.get(k)); else owner.set(k, i); }));
+  const groups = new Map();
+  runs.forEach((run, i) => { const g = find(i); if (!groups.has(g)) groups.set(g, { type: run.type, runs: [], cells: new Set() }); const G2 = groups.get(g); G2.runs.push(run); run.cells.forEach(([r, c]) => G2.cells.add(key(r, c))); });
+  return [...groups.values()];
+}
+function decideSpecial(g) {
+  const maxLen = Math.max(...g.runs.map(r => r.cells.length));
+  const hasH = g.runs.some(r => r.dir === "h"), hasV = g.runs.some(r => r.dir === "v");
+  if (maxLen >= 6) return "blast";
+  if (maxLen === 5) return "star";
+  if (hasH && hasV) return "bomb";
+  if (maxLen === 4) { if (ITEMS[g.type].cat === "wet") return "compost"; return g.runs.find(r => r.cells.length === 4).dir; }
+  return null;
+}
+function specialSpot(g, kind, prefer) {
+  for (const p of prefer || []) if (p && g.cells.has(key(p[0], p[1]))) return p;
+  if (kind === "bomb") { const hc = new Set(), out = []; g.runs.filter(r => r.dir === "h").forEach(r => r.cells.forEach(([a, b]) => hc.add(key(a, b)))); for (const r of g.runs.filter(r => r.dir === "v")) for (const [a, b] of r.cells) if (hc.has(key(a, b))) return [a, b]; }
+  const longest = g.runs.reduce((a, b) => b.cells.length > a.cells.length ? b : a);
+  return longest.cells[Math.floor((longest.cells.length - 1) / 2)];
+}
+
+/* =====================================================================
+   6. CLEARING, POWER-UPS & COMBOS
+   ===================================================================== */
+function mostCommonType() { const cnt = {}; G.flat().forEach(t => { if (t && !COLORLESS(t.special)) cnt[t.type] = (cnt[t.type] || 0) + 1; }); let best = -1, n = -1; for (const k in cnt) if (cnt[k] > n) { n = cnt[k]; best = +k; } return best; }
+function areaFor(kind, r, c, target) {
+  const out = [], add = (a, b) => inB(a, b) && out.push([a, b]);
+  const row = (a) => { for (let x = 0; x < N; x++) add(a, x); }, col = (b) => { for (let y = 0; y < N; y++) add(y, b); }, sq = (rad) => { for (let y = -rad; y <= rad; y++) for (let x = -rad; x <= rad; x++) add(r + y, c + x); };
+  const ofType = (tp) => { for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const t = G[y][x]; if (t && !COLORLESS(t.special) && t.type === tp) add(y, x); } };
+  switch (kind) {
+    case "h": row(r); break;
+    case "v": col(c); break;
+    case "bomb": case "compost": sq(1); break;
+    case "blast": row(r); col(c); break;
+    case "star": ofType(target != null && target >= 0 ? target : mostCommonType()); break;
+    case "cross": row(r); col(c); break;
+    case "bigcross": row(r - 1); row(r); row(r + 1); col(c - 1); col(c); col(c + 1); break;
+    case "mega": sq(2); break;
+    case "blastx": row(r); col(c); sq(1); break;
+    case "reset": for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) add(y, x); break;
+  }
+  return out;
+}
+// Expand a clear set by firing power-ups (chain reactions included)
+function explode(clear, queue, protect, done, info) {
+  while (queue.length) {
+    const q = queue.shift(), k = key(q.r, q.c);
+    if (done.has(k) && !q.force) continue; done.add(k);
+    const kind = q.kind; if (!kind) continue;
+    info.fired.push(kind);
+    for (const [r, c] of areaFor(kind, q.r, q.c, q.target)) {
+      const kk = key(r, c); if (protect.has(kk) || !G[r][c]) continue;
+      if (!clear.has(kk)) { clear.add(kk); const t = G[r][c]; if (t.special && !done.has(kk)) queue.push({ r, c, kind: t.special }); }
+    }
+    if (!protect.has(k) && G[q.r][q.c]) clear.add(k);
+  }
+}
+async function removeCells(clear, info) {
+  if (!clear.size) return;
+  const cats = { wet: 0, dry: 0, san: 0, haz: 0 };
+  for (const k of clear) {
+    const [r, c] = unkey(k), t = G[r][c]; if (!t) continue;
+    if (!COLORLESS(t.special)) { const cat = ITEMS[t.type].cat; S.stats[cat]++; cats[cat]++; }
+    S.stats.cleared++;
+    t.el.classList.add("gone"); G[r][c] = null;
+    const el = t.el; setTimeout(() => el.remove(), D.clear + 30);
+  }
+  info.cats = cats;
+  await sleep(D.clear);
+}
+function addScore(n, at) {
+  const v = Math.round(n * S.cascade); S.score += v; $("score").textContent = S.score.toLocaleString("en-IN"); bump("scoreBox");
+  if (at) { const p = document.createElement("div"); p.className = "fx pts"; p.textContent = "+" + v; p.style.left = (at[1] + .5) * CELL + "px"; p.style.top = (at[0] + .5) * CELL + "px"; boardEl.appendChild(p); setTimeout(() => p.remove(), 820); }
+}
+
+// Resolve all current matches once. Returns true if anything matched.
+async function resolveMatches(prefer) {
+  const groups = findGroups(); if (!groups.length) return false;
+  const clear = new Set(), protect = new Set(), done = new Set(), queue = [], creations = [], info = { fired: [] };
+  let biggest = 0;
+  for (const g of groups) {
+    const size = g.cells.size, maxLen = Math.max(...g.runs.map(r => r.cells.length));
+    biggest = Math.max(biggest, size);
+    const centre = unkey([...g.cells][Math.floor(size / 2)]);
+    addScore(size >= 6 ? SCORE.m6 : size === 5 ? SCORE.m5 : size === 4 ? SCORE.m4 : SCORE.m3, centre);
+    if (maxLen >= 4) S.stats.make4++;
+    const kind = decideSpecial(g);
+    if (kind) {
+      const [r, c] = specialSpot(g, kind, prefer); protect.add(key(r, c));
+      creations.push({ r, c, kind, type: g.type });
+      S.stats.powerups++; if (kind === "bomb") S.stats.bombs++; if (kind === "star") S.stats.stars++;
+      const old = G[r][c]; if (old && old.special) queue.push({ r, c, kind: old.special, force: true });
+    }
+    for (const k of g.cells) if (!protect.has(k)) clear.add(k);
+  }
+  for (const k of clear) { const [r, c] = unkey(k), t = G[r][c]; if (t && t.special) queue.push({ r, c, kind: t.special }); }
+  explode(clear, queue, protect, done, info);
+  if (info.fired.length) addScore(SCORE.powerUse * info.fired.length);
+  sfx.pop(S.cascade);
+  await removeCells(clear, info);
+  for (const cr of creations) {
+    LOG.push({ ev: "create", kind: cr.kind, r: cr.r, c: cr.c });
+    const t = G[cr.r][cr.c]; if (!t) continue;
+    t.special = cr.kind; if (!COLORLESS(cr.kind)) t.type = cr.type;
+    paint(t); t.el.classList.add("born"); setPos(t, cr.r, cr.c, "nofx");
+    sfx.power();
+  }
+  if (info.fired.some(k => ["bomb", "compost", "star", "blast"].includes(k))) showTransform(info.cats, info.fired);
+  feedback(biggest, creations, info);
+  return true;
+}
+async function gravity() {
+  for (let c = 0; c < N; c++) {
+    let write = N - 1;
+    for (let r = N - 1; r >= 0; r--) if (G[r][c]) { const t = G[r][c]; G[r][c] = null; G[write][c] = t; setPos(t, write, c); write--; }
+    let spawnRow = -1;
+    for (let r = write; r >= 0; r--) {
+      const t = makeTile(rnd()); G[r][c] = t;
+      setPos(t, spawnRow--, c, "nofx"); void t.el.offsetWidth; setPos(t, r, c);
+    }
+  }
+  await sleep(D.fall + 30);
+}
+// Keep resolving matches + refilling until the board is stable
+async function cascadeLoop(prefer) {
+  let first = true;
+  while (await resolveMatches(first ? prefer : null)) {
+    first = false; await gravity();
+    S.cascade++; S.bestCombo = Math.max(S.bestCombo, S.cascade); setCombo();
+  }
+}
+
+/* Power-up activation through a swap (one or two power-ups) */
+function comboKind(a, b) {
+  const x = a.special, y = b.special, has = (k) => x === k || y === k, sweep = (k) => k === "h" || k === "v", boom = (k) => k === "bomb" || k === "compost";
+  if (x === "star" && y === "star") return "reset";
+  if (has("star") && has("blast")) return "reset";
+  if (has("star")) return "starx";
+  if (has("blast")) return "blastx";
+  if (sweep(x) && sweep(y)) return "cross";
+  if (boom(x) && boom(y)) return "mega";
+  return "bigcross";
+}
+const COMBO_NAME = { reset: "🌍 ZERO WASTE RESET", starx: "🌟 STAR COMBO", blastx: "🌍 BLAST COMBO", cross: "✚ CROSS BLAST", mega: "💥 MEGA WASTE BLAST", bigcross: "💥 BIG CROSS" };
+async function firePowerSwap(p1, p2) {
+  // after the swap: A sits at p2 (moved tile), B sits at p1
+  const A = G[p2[0]][p2[1]], B = G[p1[0]][p1[1]];
+  const clear = new Set(), protect = new Set(), done = new Set(), info = { fired: [] }, queue = [];
+  const k1 = key(...p1), k2 = key(...p2);
+  if (A.special && B.special) {
+    const kind = comboKind(A, B); S.stats.combos++; LOG.push({ ev: "combo", kind });
+    done.add(k1); done.add(k2); clear.add(k1); clear.add(k2);
+    if (kind === "starx") {
+      const other = A.special === "star" ? B : A, otherPos = other === A ? p2 : p1;
+      S.stats.starUse++;
+      queue.push({ r: p2[0], c: p2[1], kind: "star", target: other.type, force: true });
+      queue.push({ r: otherPos[0], c: otherPos[1], kind: other.special, force: true });
+    } else queue.push({ r: p2[0], c: p2[1], kind, force: true });
+    addScore(kind === "reset" ? SCORE.mega : SCORE.combo, p2);
+    shout(COMBO_NAME[kind]);
+  } else {
+    const P = A.special ? A : B, pos = A.special ? p2 : p1, other = A.special ? B : A;
+    done.add(key(...pos)); clear.add(key(...pos));
+    if (P.special === "star") { S.stats.starUse++; queue.push({ r: pos[0], c: pos[1], kind: "star", target: other.type, force: true }); shout(STAR_BONUS[ITEMS[other.type].cat]); }
+    else queue.push({ r: pos[0], c: pos[1], kind: P.special, force: true });
+  }
+  explode(clear, queue, protect, done, info);
+  addScore(SCORE.powerUse * info.fired.length);
+  sfx.boom();
+  flashCells(clear);
+  await removeCells(clear, info);
+  showTransform(info.cats, info.fired);
+  await gravity();
+  S.cascade++; S.bestCombo = Math.max(S.bestCombo, S.cascade); setCombo();
+  await cascadeLoop(null);
+}
+
+/* =====================================================================
+   7. MOVES (swap / swipe / tap)
+   ===================================================================== */
+async function trySwap(p1, p2) {
+  if (S.busy || S.over) return;
+  if (!inB(...p2) || Math.abs(p1[0] - p2[0]) + Math.abs(p1[1] - p2[1]) !== 1) return;
+  S.busy = true; clearSel(); audio();
+  const A = G[p1[0]][p1[1]], B = G[p2[0]][p2[1]];
+  swapRaw(...p1, ...p2); setPos(A, ...p2, "swap"); setPos(B, ...p1, "swap"); await sleep(D.swap + 10);
+  S.cascade = 1; setCombo();
+  if (A.special || B.special) {
+    useMove();
+    await firePowerSwap(p1, p2);
+  } else if (findGroups().length) {
+    useMove();
+    await cascadeLoop([p2, p1]);
+  } else {
+    swapRaw(...p1, ...p2); setPos(A, ...p1, "swap"); setPos(B, ...p2, "swap"); sfx.nope(); await sleep(D.swap + 10);
+    S.busy = false; return;
+  }
+  S.cascade = 1; setCombo(); updateGoals();
+  if (!checkEnd() && !hasMoves()) await shuffleBoard();
+  S.busy = false;
+}
+function useMove() { S.moves--; $("moves").textContent = S.moves; bump("movesBox"); $("movesBox").classList.toggle("low", S.moves <= 5); }
+function clearSel() { if (S.sel) { const t = G[S.sel[0]][S.sel[1]]; if (t) t.el.classList.remove("sel"); } S.sel = null; }
+function cellFrom(e) { const b = boardEl.getBoundingClientRect(); return [Math.floor((e.clientY - b.top) / CELL), Math.floor((e.clientX - b.left) / CELL)]; }
+let drag = null;
+boardEl.addEventListener("pointerdown", (e) => {
+  if (!S || S.busy || S.over) return; e.preventDefault();
+  const p = cellFrom(e); if (!inB(...p)) return;
+  drag = { p, x: e.clientX, y: e.clientY, moved: false };
+  boardEl.setPointerCapture(e.pointerId);
+});
+boardEl.addEventListener("pointermove", (e) => {
+  if (!drag || drag.moved) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < CELL * .33) return;
+  drag.moved = true;
+  const d = Math.abs(dx) > Math.abs(dy) ? [0, Math.sign(dx)] : [Math.sign(dy), 0];
+  trySwap(drag.p, [drag.p[0] + d[0], drag.p[1] + d[1]]);
+});
+const endDrag = () => {
+  if (!drag) return; const d = drag; drag = null;
+  if (d.moved || S.busy) return;
+  const p = d.p;
+  if (S.sel && Math.abs(S.sel[0] - p[0]) + Math.abs(S.sel[1] - p[1]) === 1) { const s = S.sel; trySwap(s, p); return; }
+  if (S.sel && S.sel[0] === p[0] && S.sel[1] === p[1]) { clearSel(); return; }
+  clearSel(); S.sel = p; G[p[0]][p[1]].el.classList.add("sel");
+};
+boardEl.addEventListener("pointerup", endDrag);
+boardEl.addEventListener("pointercancel", () => { drag = null; });
+
+/* =====================================================================
+   8. OBJECTIVES, LEVEL END
+   ===================================================================== */
+function goalValue(g) { return g.t === "score" ? S.score : S.stats[g.t] || 0; }
+function updateGoals() {
+  $("goalList").innerHTML = S.cfg.goals.map(g => {
+    const v = Math.min(goalValue(g), g.n), pct = Math.round(v / g.n * 100);
+    return `<div class="grow ${v >= g.n ? "done" : ""}"><span>${g.label}</span><div class="bar"><i style="width:${pct}%"></i></div><b>${v.toLocaleString("en-IN")} / ${g.n.toLocaleString("en-IN")}</b></div>`;
+  }).join("");
+}
+const goalsMet = () => S.cfg.goals.every(g => goalValue(g) >= g.n);
+function checkEnd() {
+  if (goalsMet()) { S.over = true; setTimeout(winLevel, 450); return true; }
+  if (S.moves <= 0) { S.over = true; setTimeout(failLevel, 450); return true; }
+  return false;
+}
+function winLevel() {
+  sfx.win();
+  const next = S.level + 2; if (next > unlocked) { unlocked = Math.min(LEVELS.length, next); try { localStorage.setItem("wastecrush-unlocked", unlocked); } catch (e) {} }
+  if (S.level === LEVELS.length - 1) { try { localStorage.setItem("wastecrush-done10", "1"); } catch (e) {} showFinale(); return; }
+  $("wScore").textContent = S.score.toLocaleString("en-IN");
+  $("wCombo").textContent = "x" + S.bestCombo;
+  $("wPow").textContent = S.stats.powerups;
+  $("wWet").textContent = S.stats.wet; $("wDry").textContent = S.stats.dry; $("wOther").textContent = S.stats.san + S.stats.haz;
+  $("wAll").textContent = S.stats.cleared;
+  show("winScreen");
+}
+function failLevel() { const g = S.cfg.goals.map(g => `${g.label}: ${Math.min(goalValue(g), g.n)} / ${g.n}`).join(" · "); $("failMsg").textContent = "So close! " + g; show("failScreen"); }
+
+/* =====================================================================
+   9. FEEDBACK & ANIMATION HELPERS
+   ===================================================================== */
+function bump(id) { const el = $(id); el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+function setCombo() { $("combo").textContent = "x" + S.cascade; if (S.cascade > 1) bump("comboBox"); }
+let shoutBusy = 0;
+function shout(text) { const s = document.createElement("div"); s.className = "shout"; s.textContent = text; $("boardwrap").appendChild(s); shoutBusy = Date.now(); setTimeout(() => s.remove(), 1000); }
+function feedback(size, creations, info) {
+  if (Date.now() - shoutBusy < 600) return;
+  const kinds = creations.map(c => c.kind);
+  let w = null;
+  if (kinds.includes("blast")) w = "ZERO WASTE!";
+  else if (kinds.includes("star") || S.cascade >= 4) w = "WASTE BUSTER!";
+  else if (kinds.includes("bomb") || S.cascade === 3 || info.fired.length >= 2) w = "GREAT!";
+  else if (size >= 4 || S.cascade === 2) w = "GOOD!";
+  if (w) shout(w);
+}
+function flashCells(set) { for (const k of set) { const [r, c] = unkey(k); const f = document.createElement("div"); f.className = "fx flash"; Object.assign(f.style, { left: c * CELL + "px", top: r * CELL + "px", width: CELL + "px", height: CELL + "px" }); boardEl.appendChild(f); setTimeout(() => f.remove(), 360); } }
+let tfTimer = null;
+function showTransform(cats, fired) {
+  if (!cats) return;
+  let cat = fired && fired.includes("compost") ? "wet" : Object.keys(cats).reduce((a, b) => cats[b] > cats[a] ? b : a);
+  if (!cats[cat] && !(fired || []).includes("compost")) return;
+  const tx = TRANSFORM_TEXT[cat], el = $("transform");
+  el.innerHTML = tx.join('<span class="ar">→</span>'); el.classList.add("show");
+  clearTimeout(tfTimer); tfTimer = setTimeout(() => el.classList.remove("show"), 1700);
+}
+
+/* =====================================================================
+   10. SOUND (Web Audio, no files)
+   ===================================================================== */
+let actx = null, soundOn = true;
+function audio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (actx && actx.state === "suspended") actx.resume(); return actx; }
+function tone(f, at, dur, type = "sine", vol = .14) {
+  const c = audio(); if (!c || !soundOn) return;
+  const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + at;
+  o.type = type; o.frequency.setValueAtTime(f, t0); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .01); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + dur + .02);
+}
+const sfx = {
+  pop(n) { tone(520 + n * 90, 0, .12, "triangle"); tone(780 + n * 90, .05, .12, "triangle", .09); },
+  power() { tone(660, 0, .1, "square", .06); tone(990, .07, .16, "square", .06); },
+  boom() { tone(140, 0, .3, "sawtooth", .12); tone(90, .05, .35, "triangle", .14); tone(880, .1, .2, "sine", .08); },
+  nope() { tone(220, 0, .12, "triangle", .1); tone(180, .08, .14, "triangle", .1); },
+  win() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * .1, .25, "triangle", .14)); }
+};
+$("soundBtn").onclick = () => { soundOn = !soundOn; if (soundOn) audio(); $("soundBtn").textContent = soundOn ? "🔊" : "🔇"; $("soundBtn").setAttribute("aria-pressed", soundOn); };
+
+/* =====================================================================
+   11. SCREENS & LEVEL FLOW
+   ===================================================================== */
+const SCREENS = ["homeScreen", "introScreen", "winScreen", "failScreen", "finaleScreen"];
+function show(id) { SCREENS.forEach(s => $(s).classList.toggle("hide", s !== id)); }
+function hideAll() { SCREENS.forEach(s => $(s).classList.add("hide")); }
+function renderHome() {
+  $("levels").innerHTML = LEVELS.map((L, i) => `<button class="lvl ${i + 1 < unlocked ? "done" : ""}" data-l="${i}" ${i + 1 > unlocked ? "disabled" : ""} aria-label="Level ${i + 1}">${i + 1 > unlocked ? "🔒" : i + 1}${i === 9 ? "<small>CAMPUS</small>" : ""}</button>`).join("");
+  $("levels").querySelectorAll(".lvl").forEach(b => b.onclick = () => startLevel(+b.dataset.l));
+  $("demoTiles").innerHTML = ["banana", "cardboard", "sanitary", "battery"].map(k => { const i = ITEMS.findIndex(x => x.key === k); return `<div class="face cat-${ITEMS[i].cat}"><span class="ic">${iconHTML(i)}</span></div>`; }).join("");
+  show("homeScreen");
+}
+function startLevel(i) {
+  S = newLevelState(i);
+  $("lvlPill").textContent = "Level " + (i + 1);
+  $("goalText").textContent = S.cfg.title;
+  $("score").textContent = "0"; $("moves").textContent = S.moves; $("movesBox").classList.remove("low"); setCombo();
+  layout(); buildBoard(); layout(); updateGoals();
+  $("introLvl").textContent = "LEVEL " + (i + 1) + " · " + S.cfg.title.toUpperCase();
+  $("introGoal").textContent = S.cfg.goals.map(g => g.label).join(" + ");
+  $("introMoves").textContent = S.moves + " moves";
+  show("introScreen");
+}
+function showFinale() { const f = $("finaleScreen"); f.classList.remove("play"); show("finaleScreen"); void f.offsetWidth; f.classList.add("play"); }
+$("goBtn").onclick = () => { audio(); hideAll(); layout(); };
+$("playBtn").onclick = () => startLevel(Math.min(unlocked, LEVELS.length) - 1);
+$("nextBtn").onclick = () => startLevel(Math.min(S.level + 1, LEVELS.length - 1));
+$("replayBtn").onclick = () => startLevel(S.level);
+$("retryBtn").onclick = () => startLevel(S.level);
+[$("winHomeBtn"), $("failHomeBtn"), $("finHome"), $("homeBtn")].forEach(b => b.onclick = renderHome);
+$("finReplay").onclick = () => startLevel(LEVELS.length - 1);
+document.addEventListener("touchmove", (e) => { if (e.target.closest(".board")) e.preventDefault(); }, { passive: false });
+
+/* =====================================================================
+   12. INIT  (+ small test hooks for checking the logic)
+   ===================================================================== */
+S = newLevelState(0); layout(); buildBoard(); updateGoals(); renderHome();
+window.WasteCrush = {
+  get state() { return S; }, get grid() { return G; }, LOG, ITEMS, LEVELS, findGroups, trySwap, startLevel, hasMoves,
+  setBoard(rows) { // rows: array of 8 strings of item keys/specials, used only for testing
+    boardEl.innerHTML = ""; G = rows.map((row, r) => row.map((cell, c) => { const [k, sp] = cell.split(":"); const t = makeTile(Math.max(0, ITEMS.findIndex(i => i.key === k)), sp || null); setPos(t, r, c, "nofx"); return t; }));
+  }
+};
+</script>
+</body>
+</html>
